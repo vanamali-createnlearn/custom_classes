@@ -1,0 +1,18 @@
+-- Script inside the clickable Part
+local part = script.Parent
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local remote = ReplicatedStorage:WaitForChild("EnableGuiEvent")
+
+local prompt = part:FindFirstChildOfClass("ProximityPrompt")
+
+if not prompt then
+	warn("No ProximityPrompt found inside the part!")
+	return
+end
+
+prompt.Triggered:Connect(function(player)
+	-- player is already passed by the event
+	if player then
+		remote:FireClient(player)
+	end
+end)
