@@ -1,36 +1,50 @@
--- MapVoteHandler.lua
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-local MapModule = require(ReplicatedStorage:WaitForChild("MapModule"))
+-- MapModule.lua
+local MapModule = {}
 
--- RemoteEvents
-local voteEvent = Instance.new("RemoteEvent")
-voteEvent.Name = "VoteEvent"
-voteEvent.Parent = ReplicatedStorage
+-- Store vote counts for each place
+MapModule.Votes = {
+	Place1 = 0,
+	Place2 = 0,
+	Place3 = 0
+}
 
--- Voting duration (seconds)
-local votingTime = 30
+-- Store teleport CFrame locations for each place
+MapModule.Locations = {
+	Place1 = CFrame.new(157, 0.5, -63.5),
+	Place2 = CFrame.new(157, 0.5, 80.5),
+	Place3 = CFrame.new(51, 0.5, 80.5)
+}
 
--- When player votes
-voteEvent.OnServerEvent:Connect(function(player, action, placeName)
-	if action == "add" then
-		MapModule.AddVote(placeName)
-	elseif action == "remove" then
-		MapModule.RemoveVote(placeName)
-	end
+-- Store current map
+MapModule.CurrentMap = "Place1"
 
-	-- Broadcast updated votes to all clients
-	voteEvent:FireAllClients(MapModule.Votes)
-end)
-
--- Teleport players after timer
-task.spawn(function()
-	wait(votingTime)
-	for _, player in pairs(Players:GetPlayers()) do
-		local character = player.Character
-		if character and character:FindFirstChild("HumanoidRootPart") then
-			character.HumanoidRootPart.CFrame = MapModule.Locations[MapModule.CurrentMap]
+-- Function to update votes
+function MapModule.UpdateVotes()
+	local highestVotes = -math.huge
+	local currentMap = "Place1"
+	for name, votes in pairs(MapModule.Votes) do
+		if votes > highestVotes then
+			highestVotes = votes
+			currentMap = name
 		end
 	end
-	print("Teleported everyone to:", MapModule.CurrentMap)
-end)
+	MapModule.CurrentMap = currentMap
+end
+
+-- Function to add or remove votes
+function MapModule.AddVote(placeName)
+	if MapModule.Votes[placeName] ~= nil then
+		MapModule.Votes[placeName] += 1
+		MapModule.UpdateVotes()
+	end
+end
+
+function MapModule.RemoveVote(placeName)
+	if MapModule.Votes[placeName] ~= nil and MapModule.Votes[placeName] > 0 then
+		MapModule.Votes[placeName] -= 1
+		MapModule.UpdateVotes()
+	end
+end
+
+return MapModule
+
