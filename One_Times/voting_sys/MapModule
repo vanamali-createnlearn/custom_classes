@@ -1,0 +1,49 @@
+-- MapModule.lua
+local MapModule = {}
+
+-- Store vote counts for each place
+MapModule.Votes = {
+	Place1 = 0,
+	Place2 = 0,
+	Place3 = 0
+}
+
+-- Store teleport CFrame locations for each place
+MapModule.Locations = {
+	Place1 = CFrame.new(157, 0.5, -63.5),
+	Place2 = CFrame.new(157, 0.5, 80.5),
+	Place3 = CFrame.new(51, 0.5, 80.5)
+}
+
+-- Store current map
+MapModule.CurrentMap = "Place1"
+
+-- Function to update votes
+function MapModule.UpdateVotes()
+	local highestVotes = -math.huge
+	local currentMap = "Place1"
+	for name, votes in pairs(MapModule.Votes) do
+		if votes > highestVotes then
+			highestVotes = votes
+			currentMap = name
+		end
+	end
+	MapModule.CurrentMap = currentMap
+end
+
+-- Function to add or remove votes
+function MapModule.AddVote(placeName)
+	if MapModule.Votes[placeName] ~= nil then
+		MapModule.Votes[placeName] += 1
+		MapModule.UpdateVotes()
+	end
+end
+
+function MapModule.RemoveVote(placeName)
+	if MapModule.Votes[placeName] ~= nil and MapModule.Votes[placeName] > 0 then
+		MapModule.Votes[placeName] -= 1
+		MapModule.UpdateVotes()
+	end
+end
+
+return MapModule
