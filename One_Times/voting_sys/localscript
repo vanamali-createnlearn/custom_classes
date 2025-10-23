@@ -1,0 +1,72 @@
+-- LocalScript inside EnableGui
+local player = game.Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local remote = ReplicatedStorage:WaitForChild("EnableGuiEvent")
+local voteEvent = ReplicatedStorage:WaitForChild("VoteEvent")
+
+local gui = script.Parent
+local clicked = false
+local previousSelection = nil
+
+local mapImages = {
+	Place1 = gui:WaitForChild("Frame"):WaitForChild("Place1"),
+	Place2 = gui:WaitForChild("Frame"):WaitForChild("Place2"),
+	Place3 = gui:WaitForChild("Frame"):WaitForChild("Place3")
+}
+
+local voteLabels = {
+	Place1 = gui:WaitForChild("Frame"):WaitForChild("Place1Votes"),
+	Place2 = gui:WaitForChild("Frame"):WaitForChild("Place2Votes"),
+	Place3 = gui:WaitForChild("Frame"):WaitForChild("Place3Votes")
+}
+
+local closeButton = gui:WaitForChild("Frame"):WaitForChild("CloseButton")
+
+-- Hide GUI by default
+gui.Enabled = false
+
+-- When remote is fired, show GUI
+remote.OnClientEvent:Connect(function()
+	gui.Enabled = true
+end)
+
+-- Handle button click for each place
+for name, image in pairs(mapImages) do
+	image.MouseButton1Click:Connect(function()
+		if not clicked then
+			clicked = true
+			previousSelection = name
+			image.ImageTransparency = 0.5
+			image.BorderSizePixel = 3
+			image.BorderColor3 = Color3.fromRGB(255, 255, 0)
+			voteEvent:FireServer("add", name)
+		else
+			-- if clicking a different one, switch vote
+			if previousSelection ~= name then
+				local prev = mapImages[previousSelection]
+				prev.ImageTransparency = 0
+				prev.BorderSizePixel = 0
+				voteEvent:FireServer("remove", previousSelection)
+				voteEvent:FireServer("add", name)
+				image.ImageTransparency = 0.5
+				image.BorderSizePixel = 3
+				image.BorderColor3 = Color3.fromRGB(255, 255, 0)
+				previousSelection = name
+			end
+		end
+	end)
+end
+
+-- Close GUI
+closeButton.MouseButton1Click:Connect(function()
+	gui.Enabled = false
+end)
+
+-- Update votes dynamically
+voteEvent.OnClientEvent:Connect(function(votesTable)
+	for name, count in pairs(votesTable) do
+		if voteLabels[name] then
+			voteLabels[name].Text = tostring(count)
+		end
+	end
+end)
