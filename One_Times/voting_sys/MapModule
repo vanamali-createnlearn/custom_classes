@@ -1,72 +1,50 @@
--- LocalScript inside EnableGui
-local player = game.Players.LocalPlayer
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local remote = ReplicatedStorage:WaitForChild("EnableGuiEvent")
-local voteEvent = ReplicatedStorage:WaitForChild("VoteEvent")
+-- MapModule.lua
+local MapModule = {}
 
-local gui = script.Parent
-local clicked = false
-local previousSelection = nil
-
-local mapImages = {
-	Place1 = gui:WaitForChild("Frame"):WaitForChild("Place1"),
-	Place2 = gui:WaitForChild("Frame"):WaitForChild("Place2"),
-	Place3 = gui:WaitForChild("Frame"):WaitForChild("Place3")
+-- Store vote counts for each place
+MapModule.Votes = {
+	Place1 = 0,
+	Place2 = 0,
+	Place3 = 0
 }
 
-local voteLabels = {
-	Place1 = gui:WaitForChild("Frame"):WaitForChild("Place1Votes"),
-	Place2 = gui:WaitForChild("Frame"):WaitForChild("Place2Votes"),
-	Place3 = gui:WaitForChild("Frame"):WaitForChild("Place3Votes")
+-- Store teleport CFrame locations for each place
+MapModule.Locations = {
+	Place1 = CFrame.new(157, 0.5, -63.5),
+	Place2 = CFrame.new(157, 0.5, 80.5),
+	Place3 = CFrame.new(51, 0.5, 80.5)
 }
 
-local closeButton = gui:WaitForChild("Frame"):WaitForChild("CloseButton")
+-- Store current map
+MapModule.CurrentMap = "Place1"
 
--- Hide GUI by default
-gui.Enabled = false
-
--- When remote is fired, show GUI
-remote.OnClientEvent:Connect(function()
-	gui.Enabled = true
-end)
-
--- Handle button click for each place
-for name, image in pairs(mapImages) do
-	image.MouseButton1Click:Connect(function()
-		if not clicked then
-			clicked = true
-			previousSelection = name
-			image.ImageTransparency = 0.5
-			image.BorderSizePixel = 3
-			image.BorderColor3 = Color3.fromRGB(255, 255, 0)
-			voteEvent:FireServer("add", name)
-		else
-			-- if clicking a different one, switch vote
-			if previousSelection ~= name then
-				local prev = mapImages[previousSelection]
-				prev.ImageTransparency = 0
-				prev.BorderSizePixel = 0
-				voteEvent:FireServer("remove", previousSelection)
-				voteEvent:FireServer("add", name)
-				image.ImageTransparency = 0.5
-				image.BorderSizePixel = 3
-				image.BorderColor3 = Color3.fromRGB(255, 255, 0)
-				previousSelection = name
-			end
-		end
-	end)
-end
-
--- Close GUI
-closeButton.MouseButton1Click:Connect(function()
-	gui.Enabled = false
-end)
-
--- Update votes dynamically
-voteEvent.OnClientEvent:Connect(function(votesTable)
-	for name, count in pairs(votesTable) do
-		if voteLabels[name] then
-			voteLabels[name].Text = tostring(count)
+-- Function to update votes
+function MapModule.UpdateVotes()
+	local highestVotes = -math.huge
+	local currentMap = "Place1"
+	for name, votes in pairs(MapModule.Votes) do
+		if votes > highestVotes then
+			highestVotes = votes
+			currentMap = name
 		end
 	end
-end)
+	MapModule.CurrentMap = currentMap
+end
+
+-- Function to add or remove votes
+function MapModule.AddVote(placeName)
+	if MapModule.Votes[placeName] ~= nil then
+		MapModule.Votes[placeName] += 1
+		MapModule.UpdateVotes()
+	end
+end
+
+function MapModule.RemoveVote(placeName)
+	if MapModule.Votes[placeName] ~= nil and MapModule.Votes[placeName] > 0 then
+		MapModule.Votes[placeName] -= 1
+		MapModule.UpdateVotes()
+	end
+end
+
+return MapModule
+
