@@ -1,0 +1,36 @@
+-- MapVoteHandler.lua
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local MapModule = require(ReplicatedStorage:WaitForChild("MapModule"))
+
+-- RemoteEvents
+local voteEvent = Instance.new("RemoteEvent")
+voteEvent.Name = "VoteEvent"
+voteEvent.Parent = ReplicatedStorage
+
+-- Voting duration (seconds)
+local votingTime = 30
+
+-- When player votes
+voteEvent.OnServerEvent:Connect(function(player, action, placeName)
+	if action == "add" then
+		MapModule.AddVote(placeName)
+	elseif action == "remove" then
+		MapModule.RemoveVote(placeName)
+	end
+
+	-- Broadcast updated votes to all clients
+	voteEvent:FireAllClients(MapModule.Votes)
+end)
+
+-- Teleport players after timer
+task.spawn(function()
+	wait(votingTime)
+	for _, player in pairs(Players:GetPlayers()) do
+		local character = player.Character
+		if character and character:FindFirstChild("HumanoidRootPart") then
+			character.HumanoidRootPart.CFrame = MapModule.Locations[MapModule.CurrentMap]
+		end
+	end
+	print("Teleported everyone to:", MapModule.CurrentMap)
+end)
