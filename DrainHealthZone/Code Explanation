@@ -1,0 +1,198 @@
+✅ DrainHealthZone – Line-By-Line Documentation
+VARIABLES & SETUP
+Line 1
+local DAMAGE_PER_TICK = 5
+Meaning:
+Defines how much health is removed from the player each time the draining loop runs.
+
+Line 2
+local TICK_DELAY = 1
+Meaning:
+Controls how often the damage is applied, in seconds.
+(Example: every 1 second → drain 5 health.)
+
+Line 3
+local part = script.Parent
+Meaning:
+Stores a reference to the part the script is inside.
+This is the DrainHealthZone.
+
+Line 5
+local playersInZone = {}
+Meaning:
+Creates a table to track which players are currently inside the zone.
+Prevents duplicate damage loops.
+✅ Block Summary
+This block sets up the constants (damage + delay), references the zone part, and creates a table to remember which players are inside the zone.
+START DRAIN FUNCTION
+
+Line 8
+local function startDraining(player)
+Meaning:
+Begins a new function that handles draining a specific player’s health.
+
+Line 9
+    if playersInZone[player] then return end
+Meaning:
+Debounce check.
+If the player is already being drained, skip starting a new loop.
+
+Line 11
+    playersInZone[player] = true
+Meaning:
+Marks the player as “currently inside the damage zone”.
+
+Line 13
+    task.spawn(function()
+Meaning:
+Starts a separate lightweight thread so the damage loop runs independently without blocking the main code.
+
+Line 14
+        while playersInZone[player] do
+Meaning:
+Runs the loop as long as the player is marked as inside the zone.
+
+Line 15–17
+            local character = player.Character
+            local humanoid = character and character:FindFirstChild("Humanoid")
+Meaning:
+Fetches the player’s character and humanoid.
+The and ensures no errors if character is nil.
+
+Line 19–21
+            if humanoid then
+                humanoid:TakeDamage(DAMAGE_PER_TICK)
+            end
+Meaning:
+Safely applies damage (only if humanoid exists).
+
+Line 23
+            task.wait(TICK_DELAY)
+Meaning:
+Pauses the loop for the specified delay before next damage tick.
+
+Line 24–25
+        end
+    end)
+Meaning:
+Closes the while loop and the spawned thread.
+
+Line 26
+end
+Meaning:
+Ends the startDraining function.
+
+
+✅ Block Summary
+This function starts a single damage loop per player.
+Ensures no duplicates.
+Continues draining health until player leaves the zone.
+TOUCH DETECTION – PLAYER ENTERING THE ZONE
+
+
+Line 29
+part.Touched:Connect(function(hit)
+Meaning:
+Runs this function whenever something touches the DrainHealthZone part.
+
+
+Line 30
+    local character = hit.Parent
+Meaning:
+Most humanoids touch with a limb; the limb’s parent is the Character.
+
+
+Line 31
+    if not character then return end
+Meaning:
+If the touched object doesn’t belong to a character, ignore it.
+
+
+Line 33
+    local humanoid = character:FindFirstChild("Humanoid")
+Meaning:
+Checks if this is actually a player character.
+
+
+Line 34
+    if not humanoid then return end
+Meaning:
+If there’s no humanoid, then it’s not a valid player character → ignore.
+
+
+Line 36
+    local player = game.Players:GetPlayerFromCharacter(character)
+Meaning:
+Converts the character model into a Player object.
+
+
+Line 37
+    if not player then return end
+Meaning:
+If it’s an NPC or something else, ignore it.
+
+
+Line 39
+    startDraining(player)
+Meaning:
+Begins draining the player’s health.
+
+
+Line 40
+end)
+Meaning:
+Ends the Touched event function.
+✅ Block Summary
+This block listens for when a player enters the zone → confirms it’s a real player → starts draining their health.
+TOUCH ENDED – PLAYER LEAVING THE ZONE
+
+
+Line 43
+part.TouchEnded:Connect(function(hit)
+Meaning:
+Triggered when a touching object stops touching the part.
+
+
+Line 44
+    local character = hit.Parent
+Same logic: get the Character model.
+
+
+Line 45
+    if not character then return end
+Ignore all junk touches.
+
+
+Line 47
+    local player = game.Players:GetPlayerFromCharacter(character)
+Get the Player from the character.
+
+
+Line 48
+    if not player then return end
+Ignore NPCs or non-players.
+
+
+Line 51
+    playersInZone[player] = nil
+Meaning:
+Marks the player as having left the zone.
+This automatically stops the damage loop because the while condition becomes false.
+
+
+Line 52
+end)
+Meaning:
+Ends the TouchEnded function.
+
+
+✅ Block Summary
+When player leaves the zone → remove them from the tracking table → their damage loop stops instantly.
+✅ FINAL OVERALL SUMMARY
+This script creates a continuous damage zone that drains health only while the player stays inside.
+Key features:
+Debounce prevents duplicate damage loops
+Tick-based damage ensures players don’t die instantly
+Safe character & humanoid checks
+Responsive start & stop behavior
+Runs entirely server-side for security
