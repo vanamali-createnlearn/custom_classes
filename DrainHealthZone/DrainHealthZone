@@ -1,55 +1,36 @@
-local DAMAGE_PER_TICK = 5       -- How much health to drain each tick
-local TICK_DELAY = 1            -- Time between each damage tick
+local DAMAGE = 5           -- damage each time
+local DELAY = 1            -- seconds between damage
 local part = script.Parent
 
-local playersInZone = {}        -- Tracks players currently touching the zone
+local playersInZone = {}   -- remember who is inside
 
 
--- Function to start draining health for a player
-local function startDraining(player)
-	if playersInZone[player] then return end  -- Debounce: already draining
+-- When someone touches the part
+part.Touched:Connect(function(hit)
+	local hum = hit.Parent:FindFirstChild("Humanoid")
+	if hum == nil then return end
 
+	local player = game.Players:GetPlayerFromCharacter(hit.Parent)
+	if player == nil then return end
+
+	-- If already draining, don't start again
+	if playersInZone[player] then return end
 	playersInZone[player] = true
 
+	-- Damage loop
 	task.spawn(function()
 		while playersInZone[player] do
-			local character = player.Character
-			local humanoid = character and character:FindFirstChild("Humanoid")
-			
-			if humanoid then
-				-- Reduce health safely
-				humanoid:TakeDamage(DAMAGE_PER_TICK)
-			end
-			
-			task.wait(TICK_DELAY)
+			hum:TakeDamage(DAMAGE)
+			task.wait(DELAY)
 		end
 	end)
-end
-
-
--- Detect when something touches the part
-part.Touched:Connect(function(hit)
-	local character = hit.Parent
-	if not character then return end
-	
-	local humanoid = character:FindFirstChild("Humanoid")
-	if not humanoid then return end
-
-	local player = game.Players:GetPlayerFromCharacter(character)
-	if not player then return end
-
-	startDraining(player)
 end)
 
 
--- Detect when a player leaves the part
+-- When someone stops touching the part
 part.TouchEnded:Connect(function(hit)
-	local character = hit.Parent
-	if not character then return end
-	
-	local player = game.Players:GetPlayerFromCharacter(character)
-	if not player then return end
-
-	-- Stop draining when they leave
-	playersInZone[player] = nil
+	local player = game.Players:GetPlayerFromCharacter(hit.Parent)
+	if player ~= nil then
+		playersInZone[player] = nil
+	end
 end)
