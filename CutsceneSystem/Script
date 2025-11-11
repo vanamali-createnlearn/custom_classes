@@ -1,0 +1,25 @@
+-- Server Script inside CutsceneTriggerPart
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local startEvent = ReplicatedStorage:WaitForChild("StartCutscene")
+
+local DEBOUNCE_TIME = 5
+local debounce = {}
+
+script.Parent.Touched:Connect(function(hit)
+	local player = Players:GetPlayerFromCharacter(hit.Parent)
+	if not player then return end
+
+	if debounce[player] then return end
+	debounce[player] = true
+
+	-- Tell THIS PLAYER to start the cutscene
+	startEvent:FireClient(player)
+
+	-- Reset debounce after a delay so player can re-trigger
+	task.delay(DEBOUNCE_TIME, function()
+		debounce[player] = false
+	end)
+end)
