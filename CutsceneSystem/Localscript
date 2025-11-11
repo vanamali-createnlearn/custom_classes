@@ -1,0 +1,54 @@
+-- LocalScript in StarterPlayerScripts
+
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local startEvent = ReplicatedStorage:WaitForChild("StartCutscene")
+
+local cam = workspace.CurrentCamera
+local markersFolder = workspace:WaitForChild("CutsceneMarkers")
+
+local shots = {
+	markersFolder:WaitForChild("Shot1"),
+	markersFolder:WaitForChild("Shot2"),
+	markersFolder:WaitForChild("Shot3"),
+}
+
+local SHOT_DURATION = 2         -- time camera stays still
+local TWEEN_TIME = 1            -- time taken to move between shots
+
+local function tweenTo(cf)
+	local tween = TweenService:Create(
+		cam,
+		TweenInfo.new(TWEEN_TIME, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+		{CFrame = cf}
+	)
+	tween:Play()
+	tween.Completed:Wait()
+end
+
+local function playCutscene()
+	-- Save original camera settings
+	local originalType = cam.CameraType
+	local originalCF = cam.CFrame
+
+	-- Lock into scriptable mode
+	cam.CameraType = Enum.CameraType.Scriptable
+
+	-- Move to Shot1 instantly (no tween)
+	cam.CFrame = shots[1].CFrame
+	task.wait(SHOT_DURATION)
+
+	-- Move to Shot2 smoothly
+	tweenTo(shots[2].CFrame)
+	task.wait(SHOT_DURATION)
+
+	-- Move to Shot3 smoothly
+	tweenTo(shots[3].CFrame)
+	task.wait(SHOT_DURATION)
+
+	-- Restore original camera
+	cam.CameraType = originalType
+	cam.CFrame = originalCF
+end
+
+startEvent.OnClientEvent:Connect(playCutscene)
