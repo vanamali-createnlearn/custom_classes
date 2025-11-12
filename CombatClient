@@ -1,0 +1,78 @@
+--Goes inside starterplayerscripts
+
+local Player = game.Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
+local Mouse = Player:GetMouse()
+
+local CurrentCombo = 1
+local Attacking = false
+local Blocking = false
+local Block = script.Parent.Humanoid:LoadAnimation(game.ReplicatedStorage.CombatSystem.CombatAnimations.Block)
+local LeftPunch = script.Parent.Humanoid:LoadAnimation(game.ReplicatedStorage.CombatSystem.CombatAnimations.LeftPunch)
+local RightPunch = script.Parent.Humanoid:LoadAnimation(game.ReplicatedStorage.CombatSystem.CombatAnimations.RightPunch)
+
+UserInputService.InputBegan:Connect(function(input, processed)
+	if input.KeyCode == Enum.KeyCode[game.ReplicatedStorage.CombatSystem.Settings.Keybinds.Punch.Value] then
+		if Attacking == true or Blocking == true or processed then return end
+		Attacking = true
+		if CurrentCombo == 1 then
+			LeftPunch:Play()
+			CurrentCombo = 2
+			game.ReplicatedStorage.CombatSystem.Punching:FireServer()
+		else
+			RightPunch:Play()
+			CurrentCombo = 1
+			game.ReplicatedStorage.CombatSystem.Punching:FireServer()
+		end
+		wait(0.6)
+		Attacking = false
+	end
+	if input.KeyCode == Enum.KeyCode[game.ReplicatedStorage.CombatSystem.Settings.Keybinds.Block.Value] then
+		if Attacking == true or processed then return end
+		Block:Play()
+		Blocking = true
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input, processed)
+	if Attacking == true or processed then return end
+	if input.KeyCode == Enum.KeyCode[game.ReplicatedStorage.CombatSystem.Settings.Keybinds.Block.Value] then
+		Block:Stop()
+		Blocking = false
+	end
+end)
+
+
+
+
+	
+
+--[[
+Mouse.Button1Down:Connect(function(processed)
+	if Attacking == true or Blocking == true or processed then return end
+	Attacking = true
+	if CurrentCombo == 1 then
+		LeftPunch:Play()
+		CurrentCombo = 2
+		game.ReplicatedStorage.CombatSystem.Punching:FireServer()
+	else
+		RightPunch:Play()
+		CurrentCombo = 1
+		game.ReplicatedStorage.CombatSystem.Punching:FireServer()
+	end
+	wait(0.6)
+	Attacking = false
+end)
+
+Mouse.Button2Down:Connect(function(processed)
+	if Attacking == true or processed then return end
+	Block:Play()
+	Blocking = true
+end)
+
+Mouse.Button2Up:Connect(function(processed)
+	if Attacking == true or processed then return end
+	Block:Stop()
+	Blocking = false
+end)
+]]
