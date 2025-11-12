@@ -1,0 +1,88 @@
+--goes inside ServerScriptService
+
+
+game.Players.PlayerAdded:Connect(function(plr)
+	plr.CharacterAdded:Connect(function(char)
+		local humanoid = char:WaitForChild("Humanoid")
+		local hrp = char:WaitForChild("HumanoidRootPart")
+		local hitChars = {}
+		local Swinging = false
+		game:GetService("RunService").Heartbeat:Connect(function()
+			local animations = humanoid:GetPlayingAnimationTracks()
+			local Attacking = false
+			local AttackAnim = 1
+			for i, animation in pairs(animations) do
+				if animation.Animation.AnimationId == game.ReplicatedStorage.CombatSystem.CombatAnimations.Block.AnimationId then
+					Attacking = false
+				end
+				if animation.Animation.AnimationId == game.ReplicatedStorage.CombatSystem.CombatAnimations.LeftPunch.AnimationId then
+					AttackAnim = 1
+					Attacking = true
+				end
+				if animation.Animation.AnimationId == game.ReplicatedStorage.CombatSystem.CombatAnimations.RightPunch.AnimationId then
+					AttackAnim = 2
+					Attacking = true
+				end
+			end
+			if Attacking == true then
+				local ray = Ray.new(hrp.Position, hrp.CFrame.LookVector * 3)
+				local part, position = game.Workspace:FindPartOnRay(ray, char)
+				if part and part.Parent:FindFirstChild("Humanoid") and not hitChars[part.Parent] then
+					local EnemyAnimations = part.Parent.Humanoid:GetPlayingAnimationTracks()
+					local Blocking = false
+					for i, animation in pairs(EnemyAnimations) do
+						if animation.Animation.AnimationId == game.ReplicatedStorage.CombatSystem.CombatAnimations.Block.AnimationId then
+							Blocking = true
+						end
+					end
+					if Blocking == false then
+						hitChars[part.Parent] = true
+						local bv = Instance.new("BodyVelocity")
+						bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+						bv.Velocity = hrp.CFrame.LookVector * 50 + Vector3.new(0, game.ReplicatedStorage.CombatSystem.Settings.ThrustValue.Value, 0)
+						bv.Parent = part.Parent.HumanoidRootPart
+						game:GetService("Debris"):AddItem(bv, 0.1)
+						if game.ReplicatedStorage.CombatSystem.Settings.VisualEffectsEnabled.Value == true then
+							if part.Parent.UpperTorso:FindFirstChild("HitEffect") then
+								
+							else
+								local HitEffect = game.ReplicatedStorage.CombatSystem.HitEffect:Clone()
+								HitEffect.Parent = part.Parent.UpperTorso
+								game:GetService("Debris"):AddItem(HitEffect, 2)
+							end
+						end
+						if game.ReplicatedStorage.CombatSystem.Settings.SoundEffectsEnabled.Value == true then
+							if AttackAnim == 1 then
+								local PunchSound = game.ReplicatedStorage.CombatSystem.Punched1:Clone()
+								PunchSound.Playing = true
+								PunchSound.Parent = char.LeftHand
+								game:GetService("Debris"):AddItem(PunchSound, 1)
+							else
+								local RightPunch = game.ReplicatedStorage.CombatSystem.Punched2:Clone()
+								RightPunch.Playing = true
+								RightPunch.Parent = char.RightHand
+								game:GetService("Debris"):AddItem(RightPunch, 1)
+							end
+						end
+						part.Parent.Humanoid:TakeDamage(game.ReplicatedStorage.CombatSystem.Settings.Damage.Value)
+						wait(0.6)
+						hitChars[part.Parent] = nil
+					else
+						local BlockEffect = game.ReplicatedStorage.CombatSystem.BlockEffect:Clone()
+						BlockEffect.Parent = part.Parent.UpperTorso
+						game:GetService("Debris"):AddItem(BlockEffect, 2)
+					end
+				end
+			end
+		end)
+	end)
+end)
+
+game.ReplicatedStorage.CombatSystem.Punching.OnServerEvent:Connect(function(plr)
+	if game.Workspace[plr.Name].HumanoidRootPart:FindFirstChild("Swing") then
+		game.Workspace[plr.Name].HumanoidRootPart.Swing:Play()
+	else
+		game.ReplicatedStorage.CombatSystem.Swing:Clone().Parent = game.Workspace[plr.Name].HumanoidRootPart
+		game.Workspace[plr.Name].HumanoidRootPart.Swing:Play()
+	end
+end)
