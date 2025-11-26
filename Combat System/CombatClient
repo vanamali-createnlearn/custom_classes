@@ -1,4 +1,4 @@
---Goes inside starterplayerscripts
+--Goes inside StarterCharacterScripts
 
 local Player = game.Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
