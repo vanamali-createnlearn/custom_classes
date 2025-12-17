@@ -1,0 +1,37 @@
+--Create Two folders in workspace, one named SpawnPoints1 - having all the SpawnLocations from Map1, and then SpawnPoints2 - having all the SpawnLocations from Map2
+--This code alternates through each of those folders and enables or disables it based on which map's turn it is.
+
+
+local Workspace = game:GetService("Workspace")
+
+local spawnFolder1 = Workspace:WaitForChild("SpawnPoints1")
+local spawnFolder2 = Workspace:WaitForChild("SpawnPoints2")
+
+local SWITCH_TIME = 300 -- seconds
+
+-- Utility function to enable/disable all spawns in a folder
+local function setSpawnsEnabled(folder, isEnabled)
+	for _, spawn in ipairs(folder:GetChildren()) do
+		if spawn:IsA("SpawnLocation") then
+			spawn.Enabled = isEnabled
+		end
+	end
+end
+
+-- Initial state: Map 1 enabled, Map 2 disabled
+setSpawnsEnabled(spawnFolder1, true)
+setSpawnsEnabled(spawnFolder2, false)
+
+while true do
+	task.wait(SWITCH_TIME)
+
+	-- Switch: Map 1 OFF, Map 2 ON
+	setSpawnsEnabled(spawnFolder1, false)
+	setSpawnsEnabled(spawnFolder2, true)
+
+	task.wait(SWITCH_TIME)
+
+	-- Switch back: Map 1 ON, Map 2 OFF
+	setSpawnsEnabled(spawnFolder1, true)
+	setSpawnsEnabled(spawnFolder2, false)
+end
