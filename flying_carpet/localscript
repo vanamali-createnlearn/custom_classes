@@ -1,0 +1,86 @@
+--Initial Setup
+--Take a part, and resize it as the carpet, add decals, surfaceguis, materials, anything to make it look like a carpet
+--Add a vehicleseat on top of it, this is where the player will sit
+--Make a model out of those two and name it "FlyingCarpet"
+--Weld VehicleSeat and The carpet block together
+--Set PrimaryPart of the model FlyingCarpet to the carpet block
+--Anchor the carpet block (Anchor the carpet not the model FlyingCarpet, make sure the rest of the parts are unanchored)
+--Add this script in StarterPlayerScripts and you shall be able to fly the carpet using W,A,S,D and Q to descend and A to ascend
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+
+local carpet = workspace:WaitForChild("FlyingCarpet")
+local seat = carpet:WaitForChild("VehicleSeat")
+
+local moveForward = 0
+local moveUp = 0
+local turn = 0
+
+local SPEED = 50
+local VERTICAL_SPEED = 35
+local TURN_SPEED = 120
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+
+	if input.KeyCode == Enum.KeyCode.W then
+		moveForward = 1
+
+	elseif input.KeyCode == Enum.KeyCode.S then
+		moveForward = -1
+
+	elseif input.KeyCode == Enum.KeyCode.E then
+		moveUp = 1
+
+	elseif input.KeyCode == Enum.KeyCode.Q then
+		moveUp = -1
+
+	elseif input.KeyCode == Enum.KeyCode.A then
+		turn = 1
+
+	elseif input.KeyCode == Enum.KeyCode.D then
+		turn = -1
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.KeyCode == Enum.KeyCode.W or input.KeyCode == Enum.KeyCode.S then
+		moveForward = 0
+
+	elseif input.KeyCode == Enum.KeyCode.E or input.KeyCode == Enum.KeyCode.Q then
+		moveUp = 0
+
+	elseif input.KeyCode == Enum.KeyCode.A or input.KeyCode == Enum.KeyCode.D then
+		turn = 0
+	end
+end)
+
+RunService.RenderStepped:Connect(function(dt)
+
+	local character = player.Character
+	if not character then return end
+
+	local humanoid = character:FindFirstChild("Humanoid")
+	if not humanoid then return end
+
+	-- Only allow controls while sitting on THIS seat
+	if seat.Occupant ~= humanoid then
+		return
+	end
+
+	local cf = carpet:GetPivot()
+
+	cf =
+		cf
+		* CFrame.Angles(0, math.rad(turn * TURN_SPEED * dt), 0)
+		* CFrame.new(
+			0,
+			moveUp * VERTICAL_SPEED * dt,
+			-moveForward * SPEED * dt
+		)
+
+	carpet:PivotTo(cf)
+end)
