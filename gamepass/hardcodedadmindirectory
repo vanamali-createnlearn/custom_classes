@@ -1,0 +1,33 @@
+local Players = game:GetService("Players")
+
+local ADMINS = {
+	12345678, -- Your UserId
+	87654321, -- Friend's UserId
+}
+
+local function isAdmin(userId)
+	for _, id in ipairs(ADMINS) do
+		if id == userId then
+			return true
+		end
+	end
+	return false
+end
+
+local function setCollisionGroup(character)
+	for _, object in ipairs(character:GetDescendants()) do
+		if object:IsA("BasePart") then
+			object.CollisionGroup = "VIPPlayer"
+		end
+	end
+end
+
+Players.PlayerAdded:Connect(function(player)
+	if not isAdmin(player.UserId) then
+		return
+	end
+
+	player.CharacterAdded:Connect(function(character)
+		setCollisionGroup(character)
+	end)
+end)
