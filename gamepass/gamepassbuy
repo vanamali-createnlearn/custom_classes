@@ -1,0 +1,9 @@
+--add a proximity prompt inside a part
+--add this script under it
+local MarketplaceService = game:GetService("MarketplaceService")
+
+local GAMEPASS_ID = -- Replace with your Game Pass ID
+
+script.Parent.Triggered:Connect(function(player)
+	MarketplaceService:PromptGamePassPurchase(player, GAMEPASS_ID)
+end)
