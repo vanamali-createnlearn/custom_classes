@@ -1,0 +1,31 @@
+--Script inside of ServerScriptService
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StockManager = require(script.Parent.StockManager)
+
+local ShopSeeds = {
+	Carrot = workspace.CarrotSeed,
+	Tomato = workspace.TomatoSeed,
+	Apple = workspace.AppleSeed
+}
+
+for SeedName, SeedModel in pairs(ShopSeeds) do
+	local Prompt = SeedModel.ProximityPrompt
+
+	Prompt.Triggered:Connect(function(Player)
+
+		if StockManager.ReduceStock(SeedName) then
+
+			local Tool = ReplicatedStorage:FindFirstChild(SeedName .. "Tool")
+
+			if Tool then
+				Tool:Clone().Parent = Player.Backpack
+				print(Player.Name .. " bought " .. SeedName)
+				print("Remaining:", StockManager.GetStock(SeedName))
+			end
+
+		else
+			print(SeedName .. " is out of stock.")
+		end
+
+	end)
+end
