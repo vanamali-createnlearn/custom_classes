@@ -1,0 +1,45 @@
+--Modulescript inside of ServerScriptService
+local StockManager = {}
+
+local REFRESH_TIME = 30 -- seconds
+
+StockManager.Stock = {
+	Carrot = 0,
+	Tomato = 0,
+	Apple = 0
+}
+
+function StockManager.RefreshStock()
+	StockManager.Stock.Carrot = math.random(0, 5)
+	StockManager.Stock.Tomato = math.random(0, 5)
+	StockManager.Stock.Apple = math.random(0, 5)
+
+	print("=== Shop Refreshed ===")
+	print("Carrot:", StockManager.Stock.Carrot)
+	print("Tomato:", StockManager.Stock.Tomato)
+	print("Apple:", StockManager.Stock.Apple)
+end
+
+function StockManager.GetStock(seedName)
+	return StockManager.Stock[seedName]
+end
+
+function StockManager.ReduceStock(seedName)
+	if StockManager.Stock[seedName] > 0 then
+		StockManager.Stock[seedName] -= 1
+		return true
+	end
+
+	return false
+end
+
+StockManager.RefreshStock()
+
+task.spawn(function()
+	while true do
+		task.wait(REFRESH_TIME)
+		StockManager.RefreshStock()
+	end
+end)
+
+return StockManager
