@@ -1,0 +1,41 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local tool = script.Parent
+local plantEvent = ReplicatedStorage:WaitForChild("PlantSeed")
+
+local mouse
+
+tool.Equipped:Connect(function(equippedMouse)
+	mouse = equippedMouse
+	print("Equipped:", tool.Name)
+end)
+
+tool.Activated:Connect(function()
+	print("Tool activated:", tool.Name)
+
+	if not mouse then
+		warn("No mouse!")
+		return
+	end
+
+	local target = mouse.Target
+
+	if not target then
+		warn("Nothing was clicked")
+		return
+	end
+
+	print("Clicked:", target:GetFullName())
+
+	if target.Name == "PlantableGround" then
+		print("PlantableGround detected!")
+
+		plantEvent:FireServer(
+			tool.Name,
+			target,
+			mouse.Hit.Position
+		)
+	else
+		print("Not PlantableGround")
+	end
+end)
