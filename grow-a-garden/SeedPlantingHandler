@@ -1,0 +1,114 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local plantEvent = ReplicatedStorage:WaitForChild("PlantSeed")
+local plantsFolder = ReplicatedStorage:WaitForChild("Plants")
+
+local growthTimes = {
+	AppleSeed = 120,
+	CarrotSeed = 30,
+	TomatoSeed = 60
+}
+
+plantEvent.OnServerEvent:Connect(function(player, seedName, target, position)
+
+	print("SERVER RECEIVED:", player.Name, seedName)
+
+	local character = player.Character
+	if not character then
+		warn("No character")
+		return
+	end
+
+	-- Check equipped Tool
+	local tool = character:FindFirstChild(seedName)
+
+	if not tool or not tool:IsA("Tool") then
+		warn("Player does not have equipped tool:", seedName)
+		return
+	end
+
+	print("Tool verified:", tool.Name)
+
+	-- Check planting ground
+	if not target or target.Name ~= "PlantableGround" then
+		warn("Invalid planting ground:", target)
+		return
+	end
+
+	print("Ground verified")
+
+	-- Find plant inside Plants folder
+	local plantTemplate = plantsFolder:FindFirstChild(seedName)
+
+	if not plantTemplate then
+		warn("Could not find plant:", seedName)
+		return
+	end
+
+	if not plantTemplate:IsA("BasePart") then
+		warn(seedName, "is not a Part")
+		return
+	end
+
+	print("Plant found:", plantTemplate.Name)
+
+	-- Clone plant
+	local plant = plantTemplate:Clone()
+
+	plant.Position = position + Vector3.new(
+		0,
+		plant.Size.Y / 2,
+		0
+	)
+
+	plant.Parent = workspace
+
+	print("PLANTED:", seedName)
+
+	-- Store growth information
+	local growthTime = growthTimes[seedName]
+
+	plant:SetAttribute("SeedName", seedName)
+	plant:SetAttribute("PlantedAt", os.time())
+	plant:SetAttribute("GrowthTime", growthTime)
+
+	-- Create BillboardGui
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.new(0, 100, 0, 40)
+	billboard.StudsOffset = Vector3.new(0, 2, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = plant
+
+	-- Create TextLabel
+	local textLabel = Instance.new("TextLabel")
+	textLabel.Size = UDim2.fromScale(1, 1)
+	textLabel.BackgroundTransparency = 1
+	textLabel.TextScaled = true
+	textLabel.Text = "Growing..."
+	textLabel.Parent = billboard
+
+	-- Remove used Tool
+	tool:Destroy()
+
+	-- Countdown
+	task.spawn(function()
+
+		while plant.Parent do
+
+			local plantedAt = plant:GetAttribute("PlantedAt")
+			local elapsed = os.time() - plantedAt
+			local remaining = growthTime - elapsed
+
+			if remaining <= 0 then
+				textLabel.Text = "Ready!"
+				print(seedName, "is ready!")
+				break
+			end
+
+			textLabel.Text = remaining .. "s"
+
+			task.wait(1)
+		end
+
+	end)
+end)
