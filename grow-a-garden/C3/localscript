@@ -1,0 +1,58 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local gui = script.Parent
+local mainFrame = gui:WaitForChild("MainFrame")
+
+local openShopEvent = ReplicatedStorage:WaitForChild("OpenShop")
+
+local buttons = {
+	mainFrame:WaitForChild("SellInventory"),
+	mainFrame:WaitForChild("SellItem"),
+	mainFrame:WaitForChild("CheckValue")
+}
+
+local tweenInfo = TweenInfo.new(
+	0.15,
+	Enum.EasingStyle.Quad,
+	Enum.EasingDirection.Out
+)
+
+openShopEvent.OnClientEvent:Connect(function()
+	gui.Enabled = true
+end)
+
+for _, button in ipairs(buttons) do
+	local originalSize = button.Size
+
+	local hoverSize = UDim2.new(
+		originalSize.X.Scale + 0.09,
+		originalSize.X.Offset,
+		originalSize.Y.Scale + 0.04,
+		originalSize.Y.Offset
+	)
+
+	button.MouseEnter:Connect(function()
+		TweenService:Create(
+			button,
+			tweenInfo,
+			{Size = hoverSize}
+		):Play()
+	end)
+
+	button.MouseLeave:Connect(function()
+		TweenService:Create(
+			button,
+			tweenInfo,
+			{Size = originalSize}
+		):Play()
+	end)
+
+	button.Activated:Connect(function()
+		-- Selling functionality later
+	end)
+end
+
+mainFrame.Close.Activated:Connect(function()
+	gui.Enabled = false
+end)
