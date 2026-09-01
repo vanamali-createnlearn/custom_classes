@@ -1,0 +1,181 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local plantedCrops = workspace:WaitForChild("PlantedCrops")
+local cropsFolder = ReplicatedStorage:WaitForChild("Crops")
+
+local RIPE_WARNING_TIME = 5
+local BREATH_TIME = 0.5
+
+local function updateBillboard(seed, text)
+	local billboard = seed:FindFirstChildOfClass("BillboardGui")
+
+	if billboard then
+		local textLabel = billboard:FindFirstChildOfClass("TextLabel")
+
+		if textLabel then
+			textLabel.Text = text
+		end
+	end
+end
+
+local function createParticleEffect(fruit)
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Rate = 0
+	emitter.Lifetime = NumberRange.new(0.5, 1)
+	emitter.Speed = NumberRange.new(3, 6)
+	emitter.Parent = fruit
+
+	emitter:Emit(25)
+
+	task.delay(2, function()
+		if emitter then
+			emitter:Destroy()
+		end
+	end)
+end
+
+local function growCrop(seed)
+	if not seed:IsA("BasePart") then
+		return
+	end
+
+	local seedName = seed:GetAttribute("SeedName")
+	local plantedAt = seed:GetAttribute("PlantedAt")
+	local growthTime = seed:GetAttribute("GrowthTime")
+
+	if not seedName or not plantedAt or not growthTime then
+		warn("Missing growth data:", seed:GetFullName())
+		return
+	end
+
+	-- Wait until ripe-warning period
+	while seed.Parent do
+		local elapsed = os.time() - plantedAt
+		local remaining = growthTime - elapsed
+
+		if remaining <= RIPE_WARNING_TIME then
+			break
+		end
+
+		task.wait(1)
+	end
+
+	if not seed.Parent then
+		return
+	end
+
+	-- Find corresponding fruit
+	local cropName = seedName:gsub("Seed$", "")
+	local cropTemplate = cropsFolder:FindFirstChild(cropName)
+
+	if not cropTemplate then
+		warn("Could not find crop:", cropName)
+		return
+	end
+
+	if not cropTemplate:IsA("BasePart") then
+		warn(cropName, "must be a BasePart")
+		return
+	end
+
+	-- Clone fruit at seed position with full transparency
+	local fruit = cropTemplate:Clone()
+	fruit.CFrame = seed.CFrame
+	fruit.Transparency = 1
+	fruit.Anchored = false
+	fruit.Parent = workspace
+
+	-- Breathing tween information
+	local tweenInfo = TweenInfo.new(
+		BREATH_TIME,
+		Enum.EasingStyle.Sine,
+		Enum.EasingDirection.InOut
+	)
+
+	local seedFadeIn = TweenService:Create(
+		seed,
+		tweenInfo,
+		{Transparency = 0}
+	)
+
+	local seedFadeOut = TweenService:Create(
+		seed,
+		tweenInfo,
+		{Transparency = 1}
+	)
+
+	local fruitFadeIn = TweenService:Create(
+		fruit,
+		tweenInfo,
+		{Transparency = 0}
+	)
+
+	local fruitFadeOut = TweenService:Create(
+		fruit,
+		tweenInfo,
+		{Transparency = 1}
+	)
+
+	updateBillboard(seed, "Ready soon...")
+
+	-- Breathe both together until fully ripe
+	while seed.Parent and fruit.Parent do
+		local elapsed = os.time() - plantedAt
+		local remaining = growthTime - elapsed
+
+		if remaining <= 0 then
+			break
+		end
+
+		-- Fade in together
+		seedFadeIn:Play()
+		fruitFadeIn:Play()
+
+		seedFadeIn.Completed:Wait()
+
+		-- Fade out together
+		seedFadeOut:Play()
+		fruitFadeOut:Play()
+
+		seedFadeOut.Completed:Wait()
+	end
+
+	if not seed.Parent then
+		if fruit.Parent then
+			fruit:Destroy()
+		end
+		return
+	end
+
+	-- Final fruit state
+	fruit.Transparency = 0
+	fruit.Anchored = true
+	fruit.CanCollide = true
+
+	updateBillboard(seed, "Ready!")
+
+	-- Particle effect on the fruit
+	createParticleEffect(fruit)
+
+	-- Remove the seed
+	seed:Destroy()
+
+	print(seedName, "grew into", cropName)
+end
+
+local function trackSeed(seed)
+	task.spawn(function()
+		growCrop(seed)
+	end)
+end
+
+-- Existing seeds
+for _, seed in ipairs(plantedCrops:GetChildren()) do
+	trackSeed(seed)
+end
+
+-- Newly planted seeds
+plantedCrops.ChildAdded:Connect(function(seed)
+	trackSeed(seed)
+end)
