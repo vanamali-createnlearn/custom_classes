@@ -1,0 +1,65 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local cropsFolder = ReplicatedStorage:WaitForChild("Crops")
+
+local function setupFruit(fruit)
+	if not fruit:IsA("BasePart") then
+		return
+	end
+
+	local cropTemplate = cropsFolder:FindFirstChild(fruit.Name)
+
+	if not cropTemplate then
+		return
+	end
+
+	if fruit:GetAttribute("PickupReady") then
+		return
+	end
+
+	fruit:SetAttribute("PickupReady", true)
+
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = "Pick Up"
+	prompt.ObjectText = fruit.Name
+	prompt.HoldDuration = 0
+	prompt.Parent = fruit
+
+	prompt.Triggered:Connect(function(player)
+
+		if not fruit.Parent then
+			return
+		end
+
+		local tool = Instance.new("Tool")
+		tool.Name = fruit.Name
+		tool.RequiresHandle = true
+
+		local handle = fruit:Clone()
+
+		for _, child in ipairs(handle:GetChildren()) do
+			if child:IsA("ProximityPrompt") then
+				child:Destroy()
+			end
+		end
+
+		handle.Name = "Handle"
+		handle.Anchored = false
+		handle.CanCollide = false
+		handle.CanTouch = false
+		handle.CanQuery = false
+
+		handle.Parent = tool
+		tool.Parent = player.Backpack
+
+		fruit:Destroy()
+	end)
+end
+
+workspace.ChildAdded:Connect(function(child)
+	setupFruit(child)
+end)
+
+for _, child in ipairs(workspace:GetChildren()) do
+	setupFruit(child)
+end
