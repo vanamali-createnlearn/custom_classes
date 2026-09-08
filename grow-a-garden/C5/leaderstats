@@ -7,6 +7,6 @@ Players.PlayerAdded:Connect(function(player)
 
 	local sheckles = Instance.new("IntValue")
 	sheckles.Name = "Sheckles"
-	sheckles.Value = 0
+	sheckles.Value = 10
 	sheckles.Parent = leaderstats
 end)
