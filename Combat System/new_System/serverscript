@@ -1,0 +1,38 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local punchEvent = ReplicatedStorage:WaitForChild("PunchEvent")
+
+local DAMAGE = 10
+local HIT_DISTANCE = 5
+
+punchEvent.OnServerEvent:Connect(function(player)
+
+	local character = player.Character
+	if not character then
+		return
+	end
+
+	local rootPart = character:FindFirstChild("HumanoidRootPart")
+	if not rootPart then
+		return
+	end
+
+	-- Find NPCs near the player
+	for _, model in ipairs(workspace:GetChildren()) do
+
+		if model:IsA("Model") and model ~= character then
+
+			local humanoid = model:FindFirstChildOfClass("Humanoid")
+			local npcRoot = model:FindFirstChild("HumanoidRootPart")
+
+			if humanoid and npcRoot and humanoid.Health > 0 then
+
+				local distance = (rootPart.Position - npcRoot.Position).Magnitude
+
+				if distance <= HIT_DISTANCE then
+					humanoid:TakeDamage(DAMAGE)
+				end
+			end
+		end
+	end
+end)
