@@ -1,0 +1,12 @@
+local Players = game:GetService("Players")
+
+Players.PlayerAdded:Connect(function(player)
+	local leaderstats = Instance.new("Folder")
+	leaderstats.Name = "leaderstats"
+	leaderstats.Parent = player
+
+	local sheckles = Instance.new("IntValue")
+	sheckles.Name = "Sheckles"
+	sheckles.Value = 0
+	sheckles.Parent = leaderstats
+end)
