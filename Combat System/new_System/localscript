@@ -1,0 +1,36 @@
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local player = game.Players.LocalPlayer
+local punchEvent = ReplicatedStorage:WaitForChild("PunchEvent")
+
+local function setupCharacter(character)
+	local humanoid = character:WaitForChild("Humanoid")
+	local animator = humanoid:WaitForChild("Animator")
+
+	-- Punch animation
+	local punchAnimation = Instance.new("Animation")
+	punchAnimation.AnimationId = "rbxassetid://YOUR_ANIMATION_ID"
+
+	local punchTrack = animator:LoadAnimation(punchAnimation)
+
+	-- Press F to punch
+	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then
+			return
+		end
+
+		if input.KeyCode == Enum.KeyCode.F then
+			punchTrack:Play()
+
+			-- Tell the server that we punched
+			punchEvent:FireServer()
+		end
+	end)
+end
+
+if player.Character then
+	setupCharacter(player.Character)
+end
+
+player.CharacterAdded:Connect(setupCharacter)
