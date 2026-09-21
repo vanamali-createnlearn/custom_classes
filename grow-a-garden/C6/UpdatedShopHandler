@@ -1,0 +1,72 @@
+--rewriting this is much cleaner and easier than finding specific lines and replacing them
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StockManager = require(script.Parent.StockManager)
+
+local ShopSeeds = {
+	Carrot = workspace.CarrotSeed,
+	Tomato = workspace.TomatoSeed,
+	Apple = workspace.AppleSeed
+}
+
+for SeedName, SeedModel in pairs(ShopSeeds) do
+	local Prompt = SeedModel.ProximityPrompt
+
+	Prompt.Triggered:Connect(function(Player)
+
+		-- Check stock
+		if StockManager.GetStock(SeedName) <= 0 then
+			print(SeedName .. " is out of stock.")
+			return
+		end
+
+		-- Get price
+		local Price = StockManager.BuyValue[SeedName]
+
+		if not Price then
+			warn("No BuyValue set for:", SeedName)
+			return
+		end
+
+		-- Check Sheckles
+		local Leaderstats = Player:FindFirstChild("leaderstats")
+		if not Leaderstats then
+			warn("Leaderstats not found for:", Player.Name)
+			return
+		end
+
+		local Sheckles = Leaderstats:FindFirstChild("Sheckles")
+		if not Sheckles then
+			warn("Sheckles not found for:", Player.Name)
+			return
+		end
+
+		if Sheckles.Value < Price then
+			print(Player.Name .. " cannot afford " .. SeedName)
+			return
+		end
+
+		-- Find seed Tool
+		local Tool = ReplicatedStorage:FindFirstChild(SeedName .. "Tool")
+
+		if not Tool or not Tool:IsA("Tool") then
+			warn("Could not find Tool:", SeedName .. "Tool")
+			return
+		end
+
+		-- Reduce stock
+		if not StockManager.ReduceStock(SeedName) then
+			print(SeedName .. " is out of stock.")
+			return
+		end
+
+		-- Charge player
+		Sheckles.Value -= Price
+
+		-- Give seed
+		Tool:Clone().Parent = Player.Backpack
+
+		print(Player.Name .. " bought " .. SeedName .. " for " .. Price .. " Sheckles")
+		print("Remaining stock:", StockManager.GetStock(SeedName))
+		print("Remaining Sheckles:", Sheckles.Value)
+	end)
+end
