@@ -1,0 +1,117 @@
+--inside ServerScriptService after adding "SellAll" & "SellEquipped" RemoteEvents in ReplicatedStorage
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local StockManager = require(script.Parent.StockManager)
+
+local sellAllEvent = ReplicatedStorage:WaitForChild("SellAll")
+local sellEquippedEvent = ReplicatedStorage:WaitForChild("SellEquipped")
+
+local function getSellValue(tool)
+	return StockManager.SellValue[tool.Name]
+end
+
+local function getSheckles(player)
+	local leaderstats = player:FindFirstChild("leaderstats")
+
+	if not leaderstats then
+		return nil
+	end
+
+	return leaderstats:FindFirstChild("Sheckles")
+end
+
+sellAllEvent.OnServerEvent:Connect(function(player)
+	local sheckles = getSheckles(player)
+
+	if not sheckles then
+		return
+	end
+
+	local totalValue = 0
+	local toolsToSell = {}
+
+	-- Check Backpack
+	for _, item in ipairs(player.Backpack:GetChildren()) do
+		if item:IsA("Tool") then
+			local sellValue = getSellValue(item)
+
+			if sellValue then
+				totalValue += sellValue
+				table.insert(toolsToSell, item)
+			end
+		end
+	end
+
+	-- Check equipped Tool
+	local character = player.Character
+
+	if character then
+		for _, item in ipairs(character:GetChildren()) do
+			if item:IsA("Tool") then
+				local sellValue = getSellValue(item)
+
+				if sellValue then
+					totalValue += sellValue
+					table.insert(toolsToSell, item)
+				end
+			end
+		end
+	end
+
+	-- Remove sold items
+	for _, tool in ipairs(toolsToSell) do
+		tool:Destroy()
+	end
+
+	-- Give Sheckles
+	sheckles.Value += totalValue
+
+	print(player.Name .. " sold all crops for " .. totalValue .. " Sheckles")
+end)
+
+sellEquippedEvent.OnServerEvent:Connect(function(player)
+	local character = player.Character
+
+	if not character then
+		return
+	end
+
+	local equippedTool
+
+	for _, item in ipairs(character:GetChildren()) do
+		if item:IsA("Tool") then
+			equippedTool = item
+			break
+		end
+	end
+
+	if not equippedTool then
+		print(player.Name .. " has no equipped item to sell.")
+		return
+	end
+
+	local sellValue = getSellValue(equippedTool)
+
+	if not sellValue then
+		print(equippedTool.Name .. " cannot be sold.")
+		return
+	end
+
+	local sheckles = getSheckles(player)
+
+	if not sheckles then
+		return
+	end
+
+	equippedTool:Destroy()
+	sheckles.Value += sellValue
+
+	print(
+		player.Name
+			.. " sold "
+			.. equippedTool.Name
+			.. " for "
+			.. sellValue
+			.. " Sheckles"
+	)
+end)
