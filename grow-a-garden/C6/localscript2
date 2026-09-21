@@ -1,0 +1,19 @@
+-add this under sellgui as a localscript
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local gui = script.Parent
+local mainFrame = gui:WaitForChild("MainFrame")
+
+local sellAllEvent = ReplicatedStorage:WaitForChild("SellAll")
+local sellEquippedEvent = ReplicatedStorage:WaitForChild("SellEquipped")
+
+local sellInventoryButton = mainFrame:WaitForChild("SellInventory")
+local sellItemButton = mainFrame:WaitForChild("SellItem")
+
+sellInventoryButton.Activated:Connect(function()
+	sellAllEvent:FireServer()
+end)
+
+sellItemButton.Activated:Connect(function()
+	sellEquippedEvent:FireServer()
+end)
