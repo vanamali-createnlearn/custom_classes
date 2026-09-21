@@ -1,0 +1,13 @@
+--update stock manager modulescript
+--add these two below or above StockManager.Stock line
+StockManager.BuyValue = {
+	Carrot = 10,
+	Tomato = 25,
+	Apple = 50
+}
+
+StockManager.SellValue = {
+	Carrot = 5,
+	Tomato = 12,
+	Apple = 25
+}
