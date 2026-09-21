@@ -1,3 +1,4 @@
+--Script inside of ServerScriptService
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StockManager = require(script.Parent.StockManager)
 
@@ -12,51 +13,19 @@ for SeedName, SeedModel in pairs(ShopSeeds) do
 
 	Prompt.Triggered:Connect(function(Player)
 
-		-- Check stock
-		if StockManager.GetStock(SeedName) <= 0 then
+		if StockManager.ReduceStock(SeedName) then
+
+			local Tool = ReplicatedStorage:FindFirstChild(SeedName .. "Tool")
+
+			if Tool then
+				Tool:Clone().Parent = Player.Backpack
+				print(Player.Name .. " bought " .. SeedName)
+				print("Remaining:", StockManager.GetStock(SeedName))
+			end
+
+		else
 			print(SeedName .. " is out of stock.")
-			return
 		end
 
-		-- Get buy price
-		local Price = StockManager.BuyValue[SeedName]
-
-		if not Price then
-			warn("No BuyValue found for " .. SeedName)
-			return
-		end
-
-		-- Get player's Sheckles
-		local Leaderstats = Player:FindFirstChild("leaderstats")
-		local Sheckles = Leaderstats and Leaderstats:FindFirstChild("Sheckles")
-
-		if not Sheckles then
-			warn("Sheckles not found for " .. Player.Name)
-			return
-		end
-
-		-- Check if player can afford it
-		if Sheckles.Value < Price then
-			print(Player.Name .. " cannot afford " .. SeedName)
-			return
-		end
-
-		-- Find the correct Seed Tool
-		local Tool = ReplicatedStorage:FindFirstChild(SeedName .. "Seed")
-
-		if not Tool then
-			warn("Could not find " .. SeedName .. "Seed in ReplicatedStorage")
-			return
-		end
-
-		-- Complete purchase
-		Sheckles.Value -= Price
-		StockManager.ReduceStock(SeedName)
-		Tool:Clone().Parent = Player.Backpack
-
-		print(Player.Name .. " bought " .. SeedName)
-		print("Price:", Price)
-		print("Remaining stock:", StockManager.GetStock(SeedName))
-		print("Remaining Sheckles:", Sheckles.Value)
 	end)
 end
