@@ -1,0 +1,301 @@
+local DataStoreService = game:GetService("DataStoreService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local playerDataStore = DataStoreService:GetDataStore("GardenGameData_v1")
+
+local plantedCrops = workspace:WaitForChild("PlantedCrops")
+local plantsFolder = ReplicatedStorage:WaitForChild("Plants")
+local cropsFolder = ReplicatedStorage:WaitForChild("Crops")
+
+local sessionData = {}
+
+local DEFAULT_SHECKLES = 50
+
+local function serializeCFrame(cframe)
+	return {cframe:GetComponents()}
+end
+
+local function deserializeCFrame(data)
+	return CFrame.new(table.unpack(data))
+end
+
+local function createLeaderstats(player, shecklesAmount)
+	local leaderstats = Instance.new("Folder")
+	leaderstats.Name = "leaderstats"
+	leaderstats.Parent = player
+
+	local sheckles = Instance.new("IntValue")
+	sheckles.Name = "Sheckles"
+	sheckles.Value = shecklesAmount
+	sheckles.Parent = leaderstats
+end
+
+local function createBillboard(seed, remaining)
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.new(0, 100, 0, 40)
+	billboard.StudsOffset = Vector3.new(0, 2, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = seed
+
+	local textLabel = Instance.new("TextLabel")
+	textLabel.Size = UDim2.fromScale(1, 1)
+	textLabel.BackgroundTransparency = 1
+	textLabel.TextScaled = true
+	textLabel.Text = remaining .. "s"
+	textLabel.Parent = billboard
+
+	task.spawn(function()
+		while seed.Parent do
+			local plantedAt = seed:GetAttribute("PlantedAt")
+			local growthTime = seed:GetAttribute("GrowthTime")
+
+			if not plantedAt or not growthTime then
+				break
+			end
+
+			local timeRemaining = growthTime - (os.time() - plantedAt)
+
+			if timeRemaining <= 0 then
+				textLabel.Text = "Ready!"
+				break
+			end
+
+			textLabel.Text = timeRemaining .. "s"
+
+			task.wait(1)
+		end
+	end)
+end
+
+local function restoreGrowingSeed(player, plantData, remaining)
+	local seedName = plantData.SeedName
+	local growthTime = plantData.GrowthTime
+
+	local template = plantsFolder:FindFirstChild(seedName)
+
+	if not template or not template:IsA("BasePart") then
+		warn("Could not restore seed:", seedName)
+		return
+	end
+
+	local seed = template:Clone()
+
+	seed.CFrame = deserializeCFrame(plantData.CFrame)
+	seed.Parent = plantedCrops
+
+	seed:SetAttribute("SeedName", seedName)
+	seed:SetAttribute("GrowthTime", growthTime)
+	seed:SetAttribute("OwnerUserId", player.UserId)
+
+	-- Recreate the planting timestamp from the remaining time.
+	local elapsed = growthTime - remaining
+
+	seed:SetAttribute(
+		"PlantedAt",
+		os.time() - elapsed
+	)
+
+	createBillboard(seed, remaining)
+end
+
+local function restoreMatureCrop(player, plantData)
+	local cropName = plantData.CropName
+
+	local template = cropsFolder:FindFirstChild(cropName)
+
+	if not template or not template:IsA("BasePart") then
+		warn("Could not restore crop:", cropName)
+		return
+	end
+
+	local crop = template:Clone()
+
+	crop.CFrame = deserializeCFrame(plantData.CFrame)
+	crop.Anchored = true
+	crop.CanCollide = true
+
+	crop:SetAttribute("OwnerUserId", player.UserId)
+	crop:SetAttribute("CropState", "Ripe")
+
+	crop.Parent = workspace
+end
+
+local function loadPlayerData(player)
+	local key = tostring(player.UserId)
+
+	local success, data = pcall(function()
+		return playerDataStore:GetAsync(key)
+	end)
+
+	if not success then
+		warn("Failed to load data for", player.Name)
+		player:Kick("Your data could not be loaded. Please rejoin.")
+		return
+	end
+
+	if not data then
+		data = {
+			Sheckles = DEFAULT_SHECKLES,
+			LastLogout = os.time(),
+			Plants = {}
+		}
+	end
+
+	sessionData[player] = data
+
+	local shecklesAmount = data.Sheckles or DEFAULT_SHECKLES
+
+	createLeaderstats(player, shecklesAmount)
+
+	local now = os.time()
+	local lastLogout = data.LastLogout or now
+	local offlineElapsed = math.max(0, now - lastLogout)
+
+	for _, plantData in ipairs(data.Plants or {}) do
+
+		if plantData.State == "Ripe" then
+
+			restoreMatureCrop(player, plantData)
+
+		elseif plantData.State == "Growing" then
+
+			local remaining = (plantData.RemainingTime or 0) - offlineElapsed
+
+			if remaining <= 0 then
+				restoreMatureCrop(player, {
+					State = "Ripe",
+					CropName = plantData.SeedName:gsub("Seed$", ""),
+					CFrame = plantData.CFrame
+				})
+			else
+				restoreGrowingSeed(
+					player,
+					plantData,
+					remaining
+				)
+			end
+		end
+	end
+
+	player:SetAttribute("DataLoaded", true)
+
+	print(
+		player.Name,
+		"loaded.",
+		"Offline time:",
+		offlineElapsed,
+	"seconds"
+	)
+end
+
+local function collectPlayerPlants(player)
+	local plants = {}
+	local now = os.time()
+
+	-- Growing seeds
+	for _, seed in ipairs(plantedCrops:GetChildren()) do
+
+		if seed:IsA("BasePart") then
+
+			local ownerUserId = seed:GetAttribute("OwnerUserId")
+
+			if ownerUserId == player.UserId then
+
+				local seedName = seed:GetAttribute("SeedName")
+				local plantedAt = seed:GetAttribute("PlantedAt")
+				local growthTime = seed:GetAttribute("GrowthTime")
+
+				if seedName and plantedAt and growthTime then
+
+					local remaining = math.max(
+						0,
+						growthTime - (now - plantedAt)
+					)
+
+					table.insert(plants, {
+						State = "Growing",
+						SeedName = seedName,
+						GrowthTime = growthTime,
+						RemainingTime = remaining,
+						CFrame = serializeCFrame(seed.CFrame)
+					})
+				end
+			end
+		end
+	end
+
+	-- Mature crops
+	for _, crop in ipairs(workspace:GetChildren()) do
+
+		if crop:IsA("BasePart") then
+
+			local ownerUserId = crop:GetAttribute("OwnerUserId")
+			local cropState = crop:GetAttribute("CropState")
+
+			if ownerUserId == player.UserId and cropState == "Ripe" then
+
+				table.insert(plants, {
+					State = "Ripe",
+					CropName = crop.Name,
+					CFrame = serializeCFrame(crop.CFrame)
+				})
+			end
+		end
+	end
+
+	return plants
+end
+
+local function savePlayerData(player)
+	local leaderstats = player:FindFirstChild("leaderstats")
+
+	if not leaderstats then
+		return
+	end
+
+	local sheckles = leaderstats:FindFirstChild("Sheckles")
+
+	if not sheckles then
+		return
+	end
+
+	local newData = {
+		Sheckles = sheckles.Value,
+		LastLogout = os.time(),
+		Plants = collectPlayerPlants(player)
+	}
+
+	local key = tostring(player.UserId)
+
+	local success, errorMessage = pcall(function()
+		playerDataStore:UpdateAsync(key, function()
+			return newData
+		end)
+	end)
+
+	if success then
+		print("Saved data for", player.Name)
+	else
+		warn(
+			"Failed to save data for",
+			player.Name,
+			errorMessage
+		)
+	end
+end
+
+Players.PlayerAdded:Connect(function(player)
+	loadPlayerData(player)
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+	savePlayerData(player)
+	sessionData[player] = nil
+end)
+
+game:BindToClose(function()
+	for _, player in ipairs(Players:GetPlayers()) do
+		savePlayerData(player)
+	end
+end)
