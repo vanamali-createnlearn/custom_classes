@@ -1,0 +1,2 @@
+--update this one line to your seedplanter to store the data of who planted the crop
+plant:SetAttribute("OwnerUserId", player.UserId)
