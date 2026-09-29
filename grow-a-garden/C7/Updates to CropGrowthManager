@@ -1,0 +1,9 @@
+--add this line after fruit.Parent = workspace
+fruit:SetAttribute("OwnerUserId", ownerUserId)
+--add this line after local growthTime = seed:GetAttribute("GrowthTime")
+local ownerUserId = seed:GetAttribute("OwnerUserId")
+--and update the block below
+	if not seedName or not plantedAt or not growthTime or not ownerUserId then
+		warn("Missing growth data:", seed:GetFullName())
+		return
+	end
