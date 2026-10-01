@@ -1,0 +1,32 @@
+--Insert 3 shelves inside of your workspace, each for the different types of books
+-- Add invisible parts for each of the shelves. These invisible parts will hold the proximity prompts
+-- Add proximity prompts. Add the following script
+-- This script will check what book you have equipped as a tool, if red book is equipped and red shelf's proximity prompt is clicked, we destory the book and make it look like it got added to the shelf
+-- in the next one we can see how this translates to points
+
+local prompt = script.Parent
+local shelf = prompt.Parent
+
+-- RedShelf → RedBook
+-- BlueShelf → BlueBook
+-- GreenShelf → GreenBook
+local correctBook = shelf.Name:gsub("Shelf", "Book")
+
+prompt.Triggered:Connect(function(player)
+	local character = player.Character
+	if not character then
+		return
+	end
+
+	-- Check which Tool the player is currently holding
+	local tool = character:FindFirstChildOfClass("Tool")
+
+	if not tool then
+		return
+	end
+
+	-- Check if the book matches the shelf
+	if tool.Name == correctBook then
+		tool:Destroy()
+	end
+end)
