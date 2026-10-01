@@ -1,0 +1,43 @@
+--this script goes inside each and every book
+--for this example, I have taken three different types of books RedBook, BlueBook, GreenBook. They must be named exactly that and they cannot be models, either meshes or parts.
+--Add a proximity prompt under the book as well
+
+local book = script.Parent
+local bookName = book.Name
+
+local pickedUp = false
+
+-- Use the ProximityPrompt that the student created manually
+local prompt = book:WaitForChild("ProximityPrompt")
+
+prompt.Triggered:Connect(function(player)
+	if pickedUp then
+		return
+	end
+
+	local backpack = player:FindFirstChild("Backpack")
+	if not backpack then
+		return
+	end
+
+	pickedUp = true
+	prompt.Enabled = false
+
+	-- Create the Tool
+	local tool = Instance.new("Tool")
+	tool.Name = bookName
+	tool.RequiresHandle = true
+	tool.CanBeDropped = false
+
+	-- Turn the book into the Tool's Handle
+	book.Name = "Handle"
+	book.Anchored = false
+	book.CanCollide = false
+	book.Massless = true
+
+	-- Put the book inside the Tool
+	book.Parent = tool
+
+	-- Put the Tool into the player's inventory
+	tool.Parent = backpack
+end)
