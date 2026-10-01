@@ -4,29 +4,38 @@
 -- This script will check what book you have equipped as a tool, if red book is equipped and red shelf's proximity prompt is clicked, we destory the book and make it look like it got added to the shelf
 -- in the next one we can see how this translates to points
 
-local prompt = script.Parent
-local shelf = prompt.Parent
+local ProximityPromptService = game:GetService("ProximityPromptService")
 
--- RedShelf → RedBook
--- BlueShelf → BlueBook
--- GreenShelf → GreenBook
-local correctBook = shelf.Name:gsub("Shelf", "Book")
+local function onPromptTriggered(prompt, player)
+	-- Make sure this prompt belongs to a shelf
+	local shelf = prompt.Parent
 
-prompt.Triggered:Connect(function(player)
+	if not shelf or not shelf.Name:match("Shelf$") then
+		return
+	end
+
+	-- Get the equipped Tool
 	local character = player.Character
+
 	if not character then
 		return
 	end
 
-	-- Check which Tool the player is currently holding
 	local tool = character:FindFirstChildOfClass("Tool")
 
 	if not tool then
 		return
 	end
 
-	-- Check if the book matches the shelf
+	-- RedShelf -> RedBook
+	-- BlueShelf -> BlueBook
+	-- GreenShelf -> GreenBook
+	local correctBook = shelf.Name:gsub("Shelf", "Book")
+
+	-- Destroy the book if it is on the correct shelf
 	if tool.Name == correctBook then
 		tool:Destroy()
 	end
-end)
+end
+
+ProximityPromptService.PromptTriggered:Connect(onPromptTriggered)
