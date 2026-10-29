@@ -1,0 +1,641 @@
+-- ServerScriptService > WeatherCycle
+
+local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+local Terrain = Workspace.Terrain
+
+-- SETTINGS
+local CHANGE_INTERVAL = 5
+local TRANSITION_TIME = 1.1
+local WEATHER_HEIGHT = 140
+local EMITTER_SIZE = 210
+local GRID_SPACING = 210
+
+local rng = Random.new()
+local currentWeather = nil
+local weatherVersion = 0
+
+local function getGroundCenter()
+	local ground = Workspace:FindFirstChild("Baseplate")
+		or Workspace:FindFirstChild("Ground")
+
+	if ground and ground:IsA("BasePart") then
+		return Vector3.new(
+			ground.Position.X,
+			ground.Position.Y + ground.Size.Y / 2,
+			ground.Position.Z
+		)
+	end
+
+	if ground and ground:IsA("Model") then
+		local cf, size = ground:GetBoundingBox()
+
+		return Vector3.new(
+			cf.Position.X,
+			cf.Position.Y + size.Y / 2,
+			cf.Position.Z
+		)
+	end
+
+	return Vector3.zero
+end
+
+-- CREATE / FIND ATMOSPHERE
+
+local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+
+if not atmosphere then
+	atmosphere = Instance.new("Atmosphere")
+	atmosphere.Name = "WeatherAtmosphere"
+	atmosphere.Density = 0.15
+	atmosphere.Offset = 0.25
+	atmosphere.Haze = 0.5
+	atmosphere.Glare = 0
+	atmosphere.Parent = Lighting
+end
+
+-- CREATE / FIND CLOUDS
+
+local clouds = Terrain:FindFirstChildOfClass("Clouds")
+
+if not clouds then
+	clouds = Instance.new("Clouds")
+	clouds.Name = "WeatherClouds"
+	clouds.Cover = 0.15
+	clouds.Density = 0.3
+	clouds.Color = Color3.new(1, 1, 1)
+	clouds.Parent = Terrain
+end
+
+-- POST-PROCESSING EFFECTS
+
+local function getEffect(name, className)
+	local effect = Lighting:FindFirstChild(name)
+
+	if effect and effect.ClassName == className then
+		return effect
+	end
+
+	if effect then
+		effect:Destroy()
+	end
+
+	effect = Instance.new(className)
+	effect.Name = name
+	effect.Parent = Lighting
+
+	return effect
+end
+
+local colorCorrection = getEffect(
+	"WeatherColorCorrection",
+	"ColorCorrectionEffect"
+)
+
+local bloom = getEffect("WeatherBloom", "BloomEffect")
+local lightningFlash = getEffect(
+	"WeatherLightningFlash",
+	"ColorCorrectionEffect"
+)
+
+colorCorrection.Brightness = 0
+colorCorrection.Contrast = 0
+colorCorrection.Saturation = 0
+colorCorrection.TintColor = Color3.new(1, 1, 1)
+
+bloom.Intensity = 0.1
+bloom.Size = 24
+bloom.Threshold = 2
+
+lightningFlash.Brightness = 0
+lightningFlash.Contrast = 0
+lightningFlash.Saturation = 0
+lightningFlash.TintColor = Color3.new(1, 1, 1)
+
+-- SAVE THE ORIGINAL ENVIRONMENT
+
+local function captureProperties(instance, propertyNames)
+	local result = {}
+
+	for _, property in ipairs(propertyNames) do
+		result[property] = instance[property]
+	end
+
+	return result
+end
+
+local originalLighting = captureProperties(Lighting, {
+	"ClockTime",
+	"Brightness",
+	"ExposureCompensation",
+	"Ambient",
+	"OutdoorAmbient",
+	"ColorShift_Top",
+	"ColorShift_Bottom",
+	"FogStart",
+	"FogEnd",
+})
+
+local originalAtmosphere = captureProperties(atmosphere, {
+	"Density",
+	"Offset",
+	"Color",
+	"Decay",
+	"Glare",
+	"Haze",
+})
+
+local originalClouds = captureProperties(clouds, {
+	"Cover",
+	"Density",
+	"Color",
+})
+
+local originalWind = Workspace.GlobalWind
+
+-- WEATHER PARTICLE SYSTEM
+
+local oldFolder = Workspace:FindFirstChild("WeatherVisuals")
+
+if oldFolder then
+	oldFolder:Destroy()
+end
+
+local weatherFolder = Instance.new("Folder")
+weatherFolder.Name = "WeatherVisuals"
+weatherFolder.Parent = Workspace
+
+local groundCenter = getGroundCenter()
+local emitters = {}
+
+for x = -1, 1 do
+	for z = -1, 1 do
+		local part = Instance.new("Part")
+		part.Name = "WeatherEmitterArea"
+		part.Size = Vector3.new(
+			EMITTER_SIZE,
+			1,
+			EMITTER_SIZE
+		)
+
+		part.Position = groundCenter + Vector3.new(
+			x * GRID_SPACING,
+			WEATHER_HEIGHT,
+			z * GRID_SPACING
+		)
+
+		part.Anchored = true
+		part.Transparency = 1
+		part.CanCollide = false
+		part.CanTouch = false
+		part.CanQuery = false
+		part.CastShadow = false
+		part.Parent = weatherFolder
+
+		-- RAIN
+
+		local rain = Instance.new("ParticleEmitter")
+		rain.Name = "Rain"
+		rain.Enabled = false
+		rain.Rate = 0
+		rain.Lifetime = NumberRange.new(1.1, 1.4)
+		rain.Speed = NumberRange.new(90, 120)
+		rain.Acceleration = Vector3.new(5, -55, 0)
+		rain.EmissionDirection = Enum.NormalId.Bottom
+		rain.SpreadAngle = Vector2.new(8, 8)
+		rain.Orientation = Enum.ParticleOrientation.VelocityParallel
+		rain.Squash = NumberSequence.new(-3)
+		rain.Size = NumberSequence.new(0.12)
+		rain.Color = ColorSequence.new(
+			Color3.fromRGB(190, 210, 235)
+		)
+		rain.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.1),
+			NumberSequenceKeypoint.new(1, 0.5),
+		})
+		rain.LightInfluence = 0.4
+		rain.Parent = part
+
+		-- SNOW
+
+		local snow = Instance.new("ParticleEmitter")
+		snow.Name = "Snow"
+		snow.Enabled = false
+		snow.Rate = 0
+		snow.Lifetime = NumberRange.new(6, 8)
+		snow.Speed = NumberRange.new(12, 18)
+		snow.Acceleration = Vector3.new(3, -3, 1)
+		snow.EmissionDirection = Enum.NormalId.Bottom
+		snow.SpreadAngle = Vector2.new(25, 25)
+		snow.Orientation = Enum.ParticleOrientation.FacingCamera
+		snow.Size = NumberSequence.new(0.16)
+		snow.Color = ColorSequence.new(
+			Color3.fromRGB(240, 250, 255)
+		)
+		snow.RotSpeed = NumberRange.new(-40, 40)
+		snow.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 0.05),
+			NumberSequenceKeypoint.new(1, 0.35),
+		})
+		snow.LightInfluence = 0.2
+		snow.Parent = part
+
+		table.insert(emitters, {
+			Rain = rain,
+			Snow = snow,
+		})
+	end
+end
+
+-- WEATHER PRESETS
+
+local weather = {
+	Clear = {
+		Lighting = originalLighting,
+		Atmosphere = originalAtmosphere,
+		Clouds = originalClouds,
+
+		ColorCorrection = {
+			Brightness = 0,
+			Contrast = 0,
+			Saturation = 0,
+			TintColor = Color3.new(1, 1, 1),
+		},
+
+		Bloom = {
+			Intensity = 0.1,
+			Size = 24,
+			Threshold = 2,
+		},
+
+		RainRate = 0,
+		SnowRate = 0,
+		GrowthMultiplier = 1,
+		Wind = originalWind,
+	},
+
+	Rainstorm = {
+		Lighting = {
+			ClockTime = 15,
+			Brightness = 1.25,
+			ExposureCompensation = -0.4,
+			Ambient = Color3.fromRGB(75, 85, 100),
+			OutdoorAmbient = Color3.fromRGB(95, 105, 120),
+			ColorShift_Top = Color3.fromRGB(165, 180, 205),
+			ColorShift_Bottom = Color3.fromRGB(90, 100, 120),
+			FogStart = 0,
+			FogEnd = 260,
+		},
+
+		Atmosphere = {
+			Density = 0.38,
+			Offset = 0.15,
+			Color = Color3.fromRGB(160, 180, 200),
+			Decay = Color3.fromRGB(80, 95, 115),
+			Glare = 0,
+			Haze = 2.5,
+		},
+
+		Clouds = {
+			Cover = 0.95,
+			Density = 0.9,
+			Color = Color3.fromRGB(85, 95, 110),
+		},
+
+		ColorCorrection = {
+			Brightness = -0.08,
+			Contrast = 0.18,
+			Saturation = -0.2,
+			TintColor = Color3.fromRGB(195, 205, 225),
+		},
+
+		Bloom = {
+			Intensity = 0.2,
+			Size = 24,
+			Threshold = 2,
+		},
+
+		RainRate = 150,
+		SnowRate = 0,
+		GrowthMultiplier = 0.7,
+		Wind = Vector3.new(25, 0, 12),
+	},
+
+	Thunderstorm = {
+		Lighting = {
+			ClockTime = 18,
+			Brightness = 0.65,
+			ExposureCompensation = -0.7,
+			Ambient = Color3.fromRGB(40, 45, 60),
+			OutdoorAmbient = Color3.fromRGB(65, 70, 90),
+			ColorShift_Top = Color3.fromRGB(100, 115, 150),
+			ColorShift_Bottom = Color3.fromRGB(45, 50, 70),
+			FogStart = 0,
+			FogEnd = 190,
+		},
+
+		Atmosphere = {
+			Density = 0.48,
+			Offset = 0.1,
+			Color = Color3.fromRGB(120, 140, 170),
+			Decay = Color3.fromRGB(55, 65, 90),
+			Glare = 0,
+			Haze = 4,
+		},
+
+		Clouds = {
+			Cover = 1,
+			Density = 1,
+			Color = Color3.fromRGB(55, 60, 75),
+		},
+
+		ColorCorrection = {
+			Brightness = -0.12,
+			Contrast = 0.3,
+			Saturation = -0.35,
+			TintColor = Color3.fromRGB(155, 170, 195),
+		},
+
+		Bloom = {
+			Intensity = 0.18,
+			Size = 24,
+			Threshold = 2,
+		},
+
+		RainRate = 190,
+		SnowRate = 0,
+		GrowthMultiplier = 0.55,
+		Wind = Vector3.new(65, 0, 30),
+	},
+
+	GoldenSunshine = {
+		Lighting = {
+			ClockTime = 17.2,
+			Brightness = 3.6,
+			ExposureCompensation = 0.25,
+			Ambient = Color3.fromRGB(255, 190, 125),
+			OutdoorAmbient = Color3.fromRGB(255, 220, 165),
+			ColorShift_Top = Color3.fromRGB(255, 225, 160),
+			ColorShift_Bottom = Color3.fromRGB(255, 185, 125),
+			FogStart = 0,
+			FogEnd = 100000,
+		},
+
+		Atmosphere = {
+			Density = 0.16,
+			Offset = 0.25,
+			Color = Color3.fromRGB(255, 220, 170),
+			Decay = Color3.fromRGB(255, 175, 110),
+			Glare = 1.2,
+			Haze = 0.7,
+		},
+
+		Clouds = {
+			Cover = 0.15,
+			Density = 0.25,
+			Color = Color3.fromRGB(255, 225, 180),
+		},
+
+		ColorCorrection = {
+			Brightness = 0.06,
+			Contrast = 0.12,
+			Saturation = 0.25,
+			TintColor = Color3.fromRGB(255, 220, 165),
+		},
+
+		Bloom = {
+			Intensity = 0.5,
+			Size = 36,
+			Threshold = 1.1,
+		},
+
+		RainRate = 0,
+		SnowRate = 0,
+		GrowthMultiplier = 0.75,
+		Wind = Vector3.new(5, 0, 3),
+	},
+
+	Blizzard = {
+		Lighting = {
+			ClockTime = 12,
+			Brightness = 1.8,
+			ExposureCompensation = -0.15,
+			Ambient = Color3.fromRGB(165, 185, 205),
+			OutdoorAmbient = Color3.fromRGB(195, 210, 225),
+			ColorShift_Top = Color3.fromRGB(210, 230, 255),
+			ColorShift_Bottom = Color3.fromRGB(180, 210, 235),
+			FogStart = 0,
+			FogEnd = 180,
+		},
+
+		Atmosphere = {
+			Density = 0.42,
+			Offset = 0.2,
+			Color = Color3.fromRGB(220, 235, 255),
+			Decay = Color3.fromRGB(155, 180, 210),
+			Glare = 0.1,
+			Haze = 2.8,
+		},
+
+		Clouds = {
+			Cover = 0.9,
+			Density = 0.85,
+			Color = Color3.fromRGB(195, 210, 230),
+		},
+
+		ColorCorrection = {
+			Brightness = -0.03,
+			Contrast = 0.12,
+			Saturation = -0.3,
+			TintColor = Color3.fromRGB(200, 225, 255),
+		},
+
+		Bloom = {
+			Intensity = 0.2,
+			Size = 28,
+			Threshold = 1.8,
+		},
+
+		RainRate = 0,
+		SnowRate = 35,
+		GrowthMultiplier = 1,
+		Wind = Vector3.new(40, 0, 20),
+	},
+
+	MysticFog = {
+		Lighting = {
+			ClockTime = 7.4,
+			Brightness = 1.4,
+			ExposureCompensation = -0.1,
+			Ambient = Color3.fromRGB(100, 105, 145),
+			OutdoorAmbient = Color3.fromRGB(120, 130, 165),
+			ColorShift_Top = Color3.fromRGB(150, 175, 220),
+			ColorShift_Bottom = Color3.fromRGB(100, 115, 155),
+			FogStart = 0,
+			FogEnd = 100,
+		},
+
+		Atmosphere = {
+			Density = 0.55,
+			Offset = 0.1,
+			Color = Color3.fromRGB(145, 165, 205),
+			Decay = Color3.fromRGB(95, 100, 160),
+			Glare = 0.1,
+			Haze = 5,
+		},
+
+		Clouds = {
+			Cover = 0.72,
+			Density = 0.75,
+			Color = Color3.fromRGB(135, 145, 175),
+		},
+
+		ColorCorrection = {
+			Brightness = -0.03,
+			Contrast = 0.2,
+			Saturation = -0.25,
+			TintColor = Color3.fromRGB(175, 190, 235),
+		},
+
+		Bloom = {
+			Intensity = 0.3,
+			Size = 30,
+			Threshold = 1.5,
+		},
+
+		RainRate = 0,
+		SnowRate = 0,
+		GrowthMultiplier = 0.9,
+		Wind = Vector3.new(12, 0, 5),
+	},
+}
+
+local weatherNames = {
+	"Clear",
+	"Rainstorm",
+	"Thunderstorm",
+	"GoldenSunshine",
+	"Blizzard",
+	"MysticFog",
+}
+
+local function tweenProperties(instance, properties)
+	local tween = TweenService:Create(
+		instance,
+		TweenInfo.new(
+			TRANSITION_TIME,
+			Enum.EasingStyle.Sine,
+			Enum.EasingDirection.InOut
+		),
+		properties
+	)
+
+	tween:Play()
+end
+
+-- LIGHTNING FLASHES
+
+local function startLightning(version)
+	task.spawn(function()
+		while weatherVersion == version
+			and currentWeather == "Thunderstorm" do
+
+			task.wait(rng:NextNumber(1.0, 2.0))
+
+			if weatherVersion ~= version
+				or currentWeather ~= "Thunderstorm" then
+				break
+			end
+
+			tweenProperties(lightningFlash, {
+				Brightness = 0.85,
+				Contrast = 0.25,
+			})
+
+			task.wait(0.09)
+
+			lightningFlash.Brightness = 0
+			lightningFlash.Contrast = 0
+
+			task.wait(0.08)
+
+			if weatherVersion == version
+				and currentWeather == "Thunderstorm" then
+
+				lightningFlash.Brightness = 0.35
+				task.wait(0.05)
+				lightningFlash.Brightness = 0
+			end
+		end
+	end)
+end
+
+-- APPLY WEATHER
+
+local function applyWeather(name)
+	local preset = weather[name]
+
+	if not preset then
+		return
+	end
+
+	weatherVersion += 1
+	local version = weatherVersion
+
+	currentWeather = name
+
+	-- Other scripts can read these attributes later.
+	-- CropGrowthManager must use the multiplier for it to
+	-- actually shorten crop growth time.
+	Workspace:SetAttribute("CurrentWeather", name)
+	Workspace:SetAttribute(
+		"CropGrowthTimeMultiplier",
+		preset.GrowthMultiplier
+	)
+
+	tweenProperties(Lighting, preset.Lighting)
+	tweenProperties(atmosphere, preset.Atmosphere)
+	tweenProperties(clouds, preset.Clouds)
+	tweenProperties(colorCorrection, preset.ColorCorrection)
+	tweenProperties(bloom, preset.Bloom)
+
+	Workspace.GlobalWind = preset.Wind
+
+	lightningFlash.Brightness = 0
+	lightningFlash.Contrast = 0
+
+	for _, pair in ipairs(emitters) do
+		pair.Rain.Rate = preset.RainRate
+		pair.Rain.Enabled = preset.RainRate > 0
+
+		pair.Snow.Rate = preset.SnowRate
+		pair.Snow.Enabled = preset.SnowRate > 0
+	end
+
+	if name == "Thunderstorm" then
+		startLightning(version)
+	end
+
+	print("Weather changed to:", name)
+end
+
+-- RANDOM WEATHER EVERY 5 SECONDS
+
+while true do
+	task.wait(CHANGE_INTERVAL)
+
+	local choices = {}
+
+	for _, name in ipairs(weatherNames) do
+		if name ~= currentWeather then
+			table.insert(choices, name)
+		end
+	end
+
+	local selectedWeather = choices[
+		rng:NextInteger(1, #choices)
+	]
+
+	applyWeather(selectedWeather)
+end
