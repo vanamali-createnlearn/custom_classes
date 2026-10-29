@@ -1,0 +1,333 @@
+-- ServerScriptService > DailyRewardManager
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local DataStoreService = game:GetService("DataStoreService")
+local Workspace = game:GetService("Workspace")
+local HttpService = game:GetService("HttpService")
+
+-- SETTINGS
+local COOLDOWN = 24 * 60 * 60
+local SHECKLES_REWARD = 50
+
+local SEED_NAMES = {
+	"CarrotSeed",
+	"TomatoSeed",
+	"AppleSeed",
+}
+
+local rng = Random.new()
+local claiming = {}
+
+local rewardStore = DataStoreService:GetDataStore(
+	"DailyRewardClaims_v1"
+)
+
+-- REWARD NOTIFICATION EVENT
+local rewardEvent = ReplicatedStorage:FindFirstChild(
+	"DailyRewardMessage"
+)
+
+if not rewardEvent then
+	rewardEvent = Instance.new("RemoteEvent")
+	rewardEvent.Name = "DailyRewardMessage"
+	rewardEvent.Parent = ReplicatedStorage
+end
+
+-- FIND THE EXISTING TREASURE PART AND PROMPT
+local treasurePart = Workspace:WaitForChild("TreasurePrompt")
+
+assert(
+	treasurePart:IsA("BasePart"),
+	"Workspace.TreasurePrompt must be a Part or other BasePart."
+)
+
+local prompt = treasurePart:WaitForChild("ProximityPrompt")
+
+assert(
+	prompt:IsA("ProximityPrompt"),
+	"TreasurePrompt must contain a ProximityPrompt named ProximityPrompt."
+)
+
+-- Configure the existing prompt
+prompt.ActionText = "Claim Reward"
+prompt.ObjectText = "Daily Reward Chest"
+prompt.HoldDuration = 0.5
+prompt.MaxActivationDistance = 10
+prompt.RequiresLineOfSight = false
+prompt.Enabled = true
+
+-- HELPERS
+local function notify(player, kind, message)
+	if player.Parent == Players then
+		rewardEvent:FireClient(player, kind, message)
+	end
+end
+
+local function getSheckles(player)
+	local leaderstats = player:FindFirstChild("leaderstats")
+		or player:WaitForChild("leaderstats", 10)
+
+	if not leaderstats then
+		return nil
+	end
+
+	local sheckles = leaderstats:FindFirstChild("Sheckles")
+		or leaderstats:WaitForChild("Sheckles", 10)
+
+	if sheckles and sheckles:IsA("IntValue") then
+		return sheckles
+	end
+
+	return nil
+end
+
+local function getAvailableSeeds()
+	local available = {}
+
+	for _, seedName in ipairs(SEED_NAMES) do
+		local seed = ReplicatedStorage:FindFirstChild(seedName)
+
+		if seed and seed:IsA("Tool") then
+			table.insert(available, seedName)
+		end
+	end
+
+	return available
+end
+
+local function formatTime(seconds)
+	seconds = math.max(0, math.ceil(seconds))
+
+	local hours = math.floor(seconds / 3600)
+	local minutes = math.ceil((seconds % 3600) / 60)
+
+	if hours > 0 then
+		return string.format("%d hr %d min", hours, minutes)
+	end
+
+	return string.format("%d min", math.max(1, minutes))
+end
+
+local function chooseReward()
+	local seeds = getAvailableSeeds()
+
+	if #seeds > 0 and rng:NextNumber() < 0.5 then
+		local seedName = seeds[rng:NextInteger(1, #seeds)]
+
+		return {
+			Type = "Seed",
+			SeedName = seedName,
+			Description = seedName,
+		}
+	end
+
+	return {
+		Type = "Sheckles",
+		Amount = SHECKLES_REWARD,
+		Description = tostring(SHECKLES_REWARD) .. " Sheckles",
+	}
+end
+
+-- CLAIM REWARD
+local function claimReward(player)
+	if player.Parent ~= Players then
+		return
+	end
+
+	-- Validate distance on the server
+	local character = player.Character
+	local root = character
+		and character:FindFirstChild("HumanoidRootPart")
+
+	if not root then
+		return
+	end
+
+	if (root.Position - treasurePart.Position).Magnitude
+		> prompt.MaxActivationDistance + 8 then
+		return
+	end
+
+	local reward = chooseReward()
+	local sheckles
+	local backpack
+
+	-- Verify the reward can be granted before claiming
+	if reward.Type == "Sheckles" then
+		sheckles = getSheckles(player)
+
+		if not sheckles then
+			notify(
+				player,
+				"error",
+				"Your Sheckles stat isn't ready. Please try again."
+			)
+			return
+		end
+	else
+		local seed = ReplicatedStorage:FindFirstChild(
+			reward.SeedName
+		)
+
+		if not seed or not seed:IsA("Tool") then
+			notify(
+				player,
+				"error",
+				"This seed reward is unavailable. Please try again."
+			)
+			return
+		end
+
+		backpack = player:FindFirstChildOfClass("Backpack")
+			or player:WaitForChild("Backpack", 10)
+
+		if not backpack then
+			notify(
+				player,
+				"error",
+				"Your inventory isn't ready. Please try again."
+			)
+			return
+		end
+	end
+
+	-- Reserve today's claim in DataStore
+	local now = os.time()
+	local claimToken = HttpService:GenerateGUID(false)
+	local key = "Player_" .. player.UserId
+
+	local success, updatedData = pcall(function()
+		return rewardStore:UpdateAsync(key, function(oldData)
+			local data
+
+			if type(oldData) == "table" then
+				data = oldData
+			else
+				data = {}
+			end
+
+			local lastClaim = tonumber(data.LastClaimAt) or 0
+
+			-- Already claimed within the last 24 hours
+			if now - lastClaim < COOLDOWN then
+				return data
+			end
+
+			return {
+				LastClaimAt = now,
+				ClaimToken = claimToken,
+				LastReward = reward.Description,
+			}
+		end)
+	end)
+
+	if not success then
+		warn(
+			"Daily reward DataStore error for "
+				.. player.Name .. ": " .. tostring(updatedData)
+		)
+
+		notify(
+			player,
+			"error",
+			"Couldn't verify your reward. Please try again."
+		)
+		return
+	end
+
+	-- Only the server that reserved the claim grants it
+	if type(updatedData) ~= "table"
+		or updatedData.ClaimToken ~= claimToken then
+
+		local lastClaim = 0
+
+		if type(updatedData) == "table" then
+			lastClaim = tonumber(updatedData.LastClaimAt) or 0
+		end
+
+		local remaining = COOLDOWN - (os.time() - lastClaim)
+
+		notify(
+			player,
+			"cooldown",
+			"Your next reward is available in "
+				.. formatTime(remaining) .. "."
+		)
+
+		return
+	end
+
+	-- GIVE THE REWARD
+	if reward.Type == "Sheckles" then
+		sheckles.Value += reward.Amount
+
+		notify(
+			player,
+			"success",
+			"You received " .. reward.Amount .. " Sheckles!"
+		)
+	else
+		local seedTemplate = ReplicatedStorage:FindFirstChild(
+			reward.SeedName
+		)
+
+		if not seedTemplate or not seedTemplate:IsA("Tool") then
+			warn("Missing daily reward seed:", reward.SeedName)
+
+			notify(
+				player,
+				"error",
+				"The seed couldn't be granted. Please contact the game owner."
+			)
+			return
+		end
+
+		local seedTool = seedTemplate:Clone()
+		seedTool.Parent = backpack
+
+		notify(
+			player,
+			"success",
+			"You received a " .. reward.SeedName .. "!"
+		)
+	end
+
+	print(
+		player.Name .. " claimed daily reward: "
+			.. reward.Description
+	)
+end
+
+-- HANDLE PROMPT ACTIVATION
+prompt.Triggered:Connect(function(player)
+	if claiming[player.UserId] then
+		return
+	end
+
+	claiming[player.UserId] = true
+
+	task.spawn(function()
+		local success, err = pcall(function()
+			claimReward(player)
+		end)
+
+		if not success then
+			warn("Daily reward error:", err)
+
+			notify(
+				player,
+				"error",
+				"Something went wrong. Please try again later."
+			)
+		end
+
+		claiming[player.UserId] = nil
+	end)
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+	claiming[player.UserId] = nil
+end)
+
+print("Daily Reward Manager loaded.")
